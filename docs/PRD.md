@@ -49,7 +49,7 @@ The tool reads feedback, classifies each item with a schema-constrained API call
 
 1. Read `data/feedback.jsonl`.
 2. Send each item to the chosen model with the schema attached.
-3. Write the parsed result and token counts to `data/results.jsonl`.
+3. Write the parsed result and token counts to one file per model and prompt, `data/results_<model>_<prompt>.jsonl`.
 4. Compute cost and compare with `labels.jsonl`.
 
 | Area | Requirement |
@@ -62,9 +62,9 @@ The tool reads feedback, classifies each item with a schema-constrained API call
 | Severity | Enum: low, medium, high, critical. Praise-only reviews (`general_praise`) are `low` |
 | Summary | String, at most 20 words |
 | Human review flag | `needs_human_review`, boolean |
-| Results file | `data/results.jsonl` with parsed fields plus `input_tokens` and `output_tokens` per call |
+| Results file | One file per model and prompt, `data/results_<model>_<prompt>.jsonl`, with parsed fields plus `input_tokens` and `output_tokens` per call; a row that fails to parse also keeps `raw_text`. Items already done are skipped on rerun and failed items are retried |
 | Cost | You write it: a model-to-(input rate, output rate) dict, per million tokens; cost per call and per 1,000 runs |
-| Call limits | `max_tokens` 300 |
+| Call limits | `max_tokens` 600, raised from 300 on 16 Nov after 5 of 40 Haiku baseline calls were cut off at 300 |
 | Secrets | `ANTHROPIC_API_KEY` in `.env`, which is gitignored and never committed |
 
 **Prompt variants.** The `--prompt` flag selects `baseline` (a short instruction plus the schema) or `rubric` (adds a one-line definition and one example for each theme and severity level). Everything else stays fixed so the comparison is fair.
@@ -101,10 +101,10 @@ The build is done when the tool runs cleanly on both models, you know what it co
 
 | Metric | Target (proposed) | Measured by |
 | --- | --- | --- |
-| Valid output | 40 of 40 items return schema-valid JSON on both models and both prompts | `results.jsonl` |
+| Valid output | 40 of 40 items return schema-valid JSON on both models and both prompts | Results files |
 | Cost visibility | Cost per call and per 1,000 runs for both models and both prompts in the README | Logged tokens times rates |
-| Theme agreement | At least 80% with your labels | `labels.jsonl` vs `results.jsonl` |
-| Severity agreement | At least 70% with your labels | `labels.jsonl` vs `results.jsonl` |
+| Theme agreement | At least 80% with your labels | `labels.jsonl` vs the results files |
+| Severity agreement | At least 70% with your labels | `labels.jsonl` vs the results files |
 | Spend | Under $1 of the $5 | Console usage page |
 | Learning check | Explain tokens, input versus output pricing and what structured outputs guarantee, without notes | Self-test |
 
@@ -147,6 +147,7 @@ The main risk is that AI writes the whole build and you learn little from it; th
 | Star ratings are not theme or severity labels | A 1-star review can be about shipping, not a defect | Use your own labels; keep `sample_meta.jsonl` closed until you finish |
 | Theme list may not fit the feedback | About a third of the sample (14 of 40) is praise, which the starter list had no place for | Done: read all 40 items first and settled the list on 15 Nov; revisit it if labelling items 1–20 shows gaps |
 | Only 15–20 labels | Agreement scores are noisy | Treat as directional; grow to 50–100 later |
+| Output cap too low | A response cut off at the token limit is not valid JSON, so that item gets no classification | Raised `max_tokens` from 300 to 600 after 5 of 40 Haiku calls were cut off; the row now keeps `raw_text` so the cause can be read |
 | API key committed to GitHub | Key leaks and can be misused | Check `.gitignore` before the first commit |
 
 **Decisions settled on 15 Nov 2026**
@@ -171,7 +172,7 @@ Today's 2–3 hour session gets a working classifier, a first cost figure and ba
 | Dataset | Sun, 30 min | CSV at `data/raw/dataset/dataset.csv` (gitignored); `make_sample.py` builds `data/feedback.jsonl` with 40 reviews; you read all 40 and settle the theme list (done 15 Nov) |
 | Classifier with Claude Code | Sun, 60 min | Working tool on 5 items, `baseline` prompt |
 | Cost calculation, by hand | Sun, 15 min | Cost per call and per 1,000 runs |
-| Full run, `baseline`, both models | Sun, 30 min if time allows, else Mon | `results.jsonl` for each model |
+| Full run, `baseline`, both models | Sun, 30 min if time allows, else Mon | A results file for each model |
 | Label items 1–20 and item 26, blind | Done 15 Nov | `labels.jsonl` |
 | `rubric` prompt and scoring | Tue, 1 hr | Second set of results; agreement report for 2 models and 2 prompts |
 | README and self-test | Wed, 1 hr | README with architecture, cost per 1,000 runs and lessons |

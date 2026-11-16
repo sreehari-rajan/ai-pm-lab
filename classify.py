@@ -40,11 +40,20 @@ PROMPTS = {
 
 ROOT = Path(__file__).resolve().parent
 
+# Output cap per call. Raised from 300 to 600 on 16 Nov after 5 of 40 Haiku baseline
+# calls were cut off at 300 (see PRD).
+MAX_TOKENS = 600
+
 
 def load_client() -> anthropic.Anthropic:
     """Build a client using ANTHROPIC_API_KEY from the project's .env file."""
     load_dotenv(ROOT / ".env")
     return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+
+def response_text(response) -> str:
+    """All text the model returned, joined; kept in the row when parsing fails."""
+    return "".join(block.text for block in response.content if block.type == "text")
 
 
 def parse_output(response) -> dict:
@@ -59,7 +68,7 @@ def classify(client: anthropic.Anthropic, model: str, prompt_name: str, text: st
     """Send one feedback text to the model. Returns the raw response."""
     return client.messages.create(
         model=model,
-        max_tokens=300,
+        max_tokens=MAX_TOKENS,
         system=PROMPTS[prompt_name],
         messages=[{"role": "user", "content": text}],
         output_config={"format": {"type": "json_schema", "schema": SCHEMA}},

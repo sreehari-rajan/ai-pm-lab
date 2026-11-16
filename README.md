@@ -46,7 +46,11 @@ over `.env`. The `.env` file and virtual environments are ignored by Git.
 
 `cli.py` reads the first N items from `data/feedback.jsonl`, sends each one to the
 model with a JSON schema (`output_config.format`, `json_schema`, `additionalProperties`
-false), and appends one row per item to `data/results.jsonl`.
+false), and appends one row per item to `data/results_<model>_<prompt>.jsonl`, for
+example `data/results_claude-haiku-5-5_baseline.jsonl`. Items already in that file
+with no error are skipped and counted, so a `--limit 2` run followed by `--limit 40`
+only runs the remaining items. Failed items are retried, which adds a second row
+for that id.
 
 ```powershell
 python .\cli.py --model claude-haiku-5-5 --prompt baseline --limit 5
@@ -56,7 +60,9 @@ python .\cli.py --model claude-haiku-5-5 --prompt baseline --limit 5
 - `cli.py`: reads items, runs each one, and writes rows. A failed call or unparseable
   output is logged with `error` set, and the run continues.
 - Each row holds `id`, `model`, `prompt`, the four result fields, `input_tokens`,
-  `output_tokens` and `error`. Runs append, so rows from different models and prompts sit
-  in one file; filter on `model` and `prompt` when comparing.
+  `output_tokens` and `error`. Each model and prompt has its own file, so runs never mix.
+  A row that fails to parse also holds `raw_text`, the model's raw output.
 - The schema guarantees the shape of the output, not that the content is right, and it
   cannot enforce the 20-word summary limit. In the first 5-item run, 1 of 5 summaries (id 4) was 21 words.
+- `max_tokens` is 600. At 300, 5 of 40 Haiku baseline calls were cut off before the JSON
+  was finished, so the cap was raised for all models. A cut-off response is not valid JSON.
